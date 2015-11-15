@@ -4,6 +4,8 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 
+import java.util.*;
+
 import java.io.FileInputStream;
  
 
@@ -37,6 +39,14 @@ public class Query {
     				 + "FROM actor a, casts c "
     		         + "WHERE c.mid = ? and a.id = c.pid";
     
+    private String _movie_actor_sql = "SELECT a.* , m.id "
+			 + "From actor a, movie m, casts c "
+			 + "Where a.id = c.pid and c.mid = m.id and m.name like ? ORDER BY m.id";
+
+    private String _movie_director_sql = "SELECT d.*, m.id "
+			 + "FROM directors d, movie m, movie_directors md "
+			 + "WHERE m.id = md.mid and md.did = d.id and m.name like ? ORDER by m.id";
+
     private String _rent_sql = "Select * from rentals where MovieId =?";
     
     private String _rent_count_sql = "Select Count(*) from rentals where cid = ?";
@@ -51,6 +61,9 @@ public class Query {
     private PreparedStatement _rent_count_statement;
     private PreparedStatement _plan_statement;
     private PreparedStatement _plan_details_statement;
+    private PreparedStatement _movie_actor_statement;
+    private PreparedStatement _movie_director_statement;
+
     
     private String currentUser;
 
@@ -112,6 +125,8 @@ public class Query {
         _director_mid_statement = _imdb.prepareStatement(_director_mid_sql);
         _actor_mid_statement = _imdb.prepareStatement(_actor_mid_sql);
         _rent_statement = _customer_db.prepareStatement(_rent_sql);
+        _movie_actor_statement = _imdb.prepareStatement(_movie_actor_sql);
+        _movie_director_statement = _imdb.prepareStatement(_movie_director_sql);
 
         _customer_login_statement = _customer_db.prepareStatement(_customer_login_sql);
         _begin_transaction_read_write_statement = _customer_db.prepareStatement(_begin_transaction_read_write_sql);
@@ -206,6 +221,9 @@ public class Query {
     		rentalsLeft -= count_set.getInt(1);
     	
     	System.out.println(currentUser + ", " + rentalsLeft + " rentals remaining.");
+    	plan.close();
+    	details.close();
+    	count_set.close();
     }
 
 
@@ -236,7 +254,7 @@ public class Query {
                 System.out.println("\t\tDirector: " + director_set.getString(3)
                         + " " + director_set.getString(2));
             }
-            
+
             /* do a dependent join with actors */
             _actor_mid_statement.clearParameters();
             _actor_mid_statement.setInt(1, mid);
@@ -245,25 +263,25 @@ public class Query {
                 System.out.println("\t\tActor: " + actor_set.getString(3)
                         + " " + actor_set.getString(2));
             }
-            
+
             /* check whether this movie is ready to rent */
             _rent_statement.clearParameters();
             _rent_statement.setInt(1,mid);
             ResultSet rent_set = _rent_statement.executeQuery();
             if(rent_set.next()== false)
-                System.out.println("\t\tMovie Available");
+                System.out.println("\t\tAVAILABLE");
             else{
             	if(rent_set.getString(1)==currentUser)
             	{
-            		System.out.println("\t\tyou have it");
+            		System.out.println("\t\tYOU CURRENTLY RENT IT");
             	}
                 else
                 {
-                    System.out.println("\t\tmovie unavailable");
+                    System.out.println("\t\tUNAVAILABLE");
                 }
 
             }
-                    
+
             director_set.close();
             actor_set.close();
             rent_set.close();
@@ -271,6 +289,7 @@ public class Query {
             /* then you have to find the status: of "AVAILABLE" "YOU HAVE IT", "UNAVAILABLE" */
         }
         System.out.println();
+        movie_set.close();
     }
 
     public void transaction_choose_plan(int cid, int pid) throws Exception {
@@ -281,7 +300,7 @@ public class Query {
     public void transaction_list_plans() throws Exception {
         /* println all available plans: SELECT * FROM plan */
     }
-    
+
     public void transaction_list_user_rentals(int cid) throws Exception {
         /* println all movies rented by the current user*/
     }
@@ -301,6 +320,84 @@ public class Query {
            Needs to run three SQL queries: (a) movies, (b) movies join directors, (c) movies join actors
            Answers are sorted by mid.
            Then merge-joins the three answer sets */
+
+    	// group by hashMap
+    	HashMap<String, LinkedList<String>> movieMap = new HashMap<String, LinkedList<String>>();
+    	HashMap<String, LinkedList<String>> actorMap = new HashMap<String, LinkedList<String>>();
+    	HashMap<String, LinkedList<String>> directorMap = new HashMap<String, LinkedList<String>>();
+
+
+    	// search the movies that has the similar names.
+    	_search_statement.clearParameters();
+        _search_statement.setString(1, '%' + movie_title + '%');
+
+        ResultSet movie_set = _search_statement.executeQuery();
+        while (movie_set.next())
+        {
+        	if (!movieMap.containsKey(movie_set.getString(1))){
+        		LinkedList<String> cur = new LinkedList<String>();
+        		cur.add(movie_set.getString(1));
+            	cur.add(movie_set.getString(2));
+            	cur.add(movie_set.getString(3));
+            	movieMap.put(movie_set.getString(1), cur);   // id as the key
+
+            	// add the key to the actor and director map
+            	cur = new LinkedList<String>();
+            	actorMap.put(movie_set.getString(1), cur);
+            	cur = new LinkedList<String>();
+            	directorMap.put(movie_set.getString(1), cur);
+        	}
+        }
+        movie_set.close();
+
+
+        // search the actors that in this movie
+
+        _movie_actor_statement.clearParameters();
+        _movie_actor_statement.setString(1, '%' + movie_title + '%');
+
+        ResultSet actor_set = _movie_actor_statement.executeQuery();
+
+        while (actor_set.next())
+        {
+        	actorMap.get(actor_set.getString(5)).add(actor_set.getString(2));
+        	actorMap.get(actor_set.getString(5)).add(actor_set.getString(3));
+        }
+        actor_set.close();
+
+
+        // search the directors that in this movie
+
+        _movie_director_statement.clearParameters();
+        _movie_director_statement.setString(1, '%' + movie_title + '%');
+
+        ResultSet director_set = _movie_director_statement.executeQuery();
+
+        while (director_set.next())
+        {
+        	directorMap.get(director_set.getString(4)).add(director_set.getString(2));
+        	directorMap.get(director_set.getString(4)).add(director_set.getString(3));
+        }
+        director_set.close();
+
+        // To merge the results by the movie, and print it.
+        for (String key : movieMap.keySet())
+        {
+        	System.out.println("Movie ID: "+ movieMap.get(key).get(0) + ", Name: " + movieMap.get(key).get(1) + ", Year: " + movieMap.get(key).get(2));
+
+        	System.out.println("Actors: ");
+        	for (int j=0; j<actorMap.get(key).size()/2; j++)
+        	{
+        		System.out.println("\t\t" + actorMap.get(key).get(j*2) + " " + actorMap.get(key).get(j*2+1));
+        	}
+
+        	System.out.println("Directors: ");
+        	for (int j=0; j<directorMap.get(key).size()/2; j++)
+        	{
+        		System.out.println("\t\t" + directorMap.get(key).get(j*2) + " " + directorMap.get(key).get(j*2+1));
+        	}
+        	System.out.println("----------------------------------------------------------------------------------------");
+        }
     }
 
 }
