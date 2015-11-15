@@ -7,7 +7,7 @@ import java.sql.ResultSet;
 import java.util.*;
 
 import java.io.FileInputStream;
-
+ 
 
 /**
  * Runs queries against a back-end database
@@ -34,34 +34,40 @@ public class Query {
     private String _director_mid_sql = "SELECT y.* "
                      + "FROM movie_directors x, directors y "
                      + "WHERE x.mid = ? and x.did = y.id";
-
+    
     private String _actor_mid_sql = "SELECT a.* "
     				 + "FROM actor a, casts c "
     		         + "WHERE c.mid = ? and a.id = c.pid";
-
-    private String _rent_sql = "Select * from rentals where MovieId =?";
-
+    
     private String _movie_actor_sql = "SELECT a.* , m.id "
-    				 + "From actor a, movie m, casts c "
-    				 + "Where a.id = c.pid and c.mid = m.id and m.name like ? ORDER BY m.id";
+			 + "From actor a, movie m, casts c "
+			 + "Where a.id = c.pid and c.mid = m.id and m.name like ? ORDER BY m.id";
 
     private String _movie_director_sql = "SELECT d.*, m.id "
-    				 + "FROM directors d, movie m, movie_directors md "
-    				 + "WHERE m.id = md.mid and md.did = d.id and m.name like ? ORDER by m.id";
+			 + "FROM directors d, movie m, movie_directors md "
+			 + "WHERE m.id = md.mid and md.did = d.id and m.name like ? ORDER by m.id";
 
-
+    private String _rent_sql = "Select * from rentals where MovieId =?";
+    
+    private String _rent_count_sql = "Select Count(*) from rentals where cid = ?";
+    
+    private String _plan_sql = "Select plan from person where cid = ?";
+    
+    private String _plan_details_sql = "Select * from plans where planName = ?";
+    				 
     private PreparedStatement _director_mid_statement;
     private PreparedStatement _actor_mid_statement;
     private PreparedStatement _rent_statement;
+    private PreparedStatement _rent_count_statement;
+    private PreparedStatement _plan_statement;
+    private PreparedStatement _plan_details_statement;
     private PreparedStatement _movie_actor_statement;
     private PreparedStatement _movie_director_statement;
 
-    //
+    
     private String currentUser;
 
-    /* uncomment, and edit, after your create your own customer database */
-    /*
-    private String _customer_login_sql = "SELECT * FROM customers WHERE login = ? and password = ?";
+    private String _customer_login_sql = "SELECT * FROM person WHERE username = ? and password = ?";
     private PreparedStatement _customer_login_statement;
 
     private String _begin_transaction_read_write_sql = "BEGIN TRANSACTION READ WRITE";
@@ -72,7 +78,6 @@ public class Query {
 
     private String _rollback_transaction_sql = "ROLLBACK TRANSACTION";
     private PreparedStatement _rollback_transaction_statement;
-     */
 
     public Query() {
     }
@@ -82,8 +87,8 @@ public class Query {
 
     public void openConnection() throws Exception {
         configProps.load(new FileInputStream("dbconn.config"));
-
-
+        
+        
         imdbUrl        = configProps.getProperty("imdbUrl");
         customerUrl    = configProps.getProperty("customerUrl");
         postgreSQLDriver   = configProps.getProperty("postgreSQLDriver");
@@ -123,17 +128,17 @@ public class Query {
         _movie_actor_statement = _imdb.prepareStatement(_movie_actor_sql);
         _movie_director_statement = _imdb.prepareStatement(_movie_director_sql);
 
-
-        /* uncomment after you create your customers database */
-        /*
         _customer_login_statement = _customer_db.prepareStatement(_customer_login_sql);
         _begin_transaction_read_write_statement = _customer_db.prepareStatement(_begin_transaction_read_write_sql);
         _commit_transaction_statement = _customer_db.prepareStatement(_commit_transaction_sql);
         _rollback_transaction_statement = _customer_db.prepareStatement(_rollback_transaction_sql);
-         */
 
         /* add here more prepare statements for all the other queries you need */
         /* . . . . . . */
+        
+        _rent_count_statement = _customer_db.prepareStatement(_rent_count_sql);
+        _plan_statement = _customer_db.prepareStatement(_plan_sql);
+        _plan_details_statement = _customer_db.prepareStatement(_plan_details_sql);
     }
 
 
@@ -174,23 +179,51 @@ public class Query {
     	currentUser = name;
         /* authenticates the user, and returns the user id, or -1 if authentication fails */
 
-        /* Uncomment after you create your own customers database */
-        /*
         int cid;
 
         _customer_login_statement.clearParameters();
         _customer_login_statement.setString(1,name);
         _customer_login_statement.setString(2,password);
         ResultSet cid_set = _customer_login_statement.executeQuery();
-        if (cid_set.next()) cid = cid_set.getInt(1);
-        else cid = -1;
+        if (cid_set.next()) 
+        	cid = cid_set.getInt(2);
+        else 
+        	cid = -1;
         return(cid);
-         */
-        return (55);
     }
 
     public void transaction_personal_data(int cid) throws Exception {
         /* println the customer's personal data: name, and plan number */
+    	/* Find the plan of the current user. */
+    	_plan_statement.clearParameters();
+    	_plan_statement.setInt(1, cid);
+    	ResultSet plan = _plan_statement.executeQuery();
+    	_plan_details_statement.clearParameters();
+    	
+    	/* Find plan details from the given plan name. */
+    	if(plan.next())
+    		_plan_details_statement.setString(1, plan.getString(1));
+    	else
+    		_plan_details_statement.setString(1, "valuePlan");
+    	
+    	/* Get the plan in use's max rental count. */
+    	ResultSet details = _plan_details_statement.executeQuery();
+    	int rentalsLeft = 0;
+    	if(details.next())
+    		rentalsLeft = details.getInt(3);
+    	
+    	/* Get the amount of currently rented movies. */
+    	_rent_count_statement.clearParameters();
+    	_rent_count_statement.setInt(1, cid);
+    	ResultSet count_set = _rent_count_statement.executeQuery();
+    	
+    	if(count_set.next())
+    		rentalsLeft -= count_set.getInt(1);
+    	
+    	System.out.println(currentUser + ", " + rentalsLeft + " rentals remaining.");
+    	plan.close();
+    	details.close();
+    	count_set.close();
     }
 
 
