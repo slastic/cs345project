@@ -3,6 +3,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.*;
 
 import java.util.*;
 
@@ -51,9 +52,19 @@ public class Query {
     
     private String _rent_count_sql = "Select Count(*) from rentals where cid = ?";
     
-    private String _plan_sql = "Select plan from person where cid = ?";
+    private String _plan_sql = "Select planID from person where cid = ?";
     
-    private String _plan_details_sql = "Select * from plans where planName = ?";
+    private String _plan_details_sql = "Select * from plans where pid = ?";
+    
+    private String _plan_list_sql = "Select * from plans";
+    
+    private String _current_rent_list_sql = "Select * "
+    		 + "from movie m, rentals r "
+    		 + "where r.cid=? and r.movieId = m.id";
+    
+    private String _valid_movie_sql = "Select * from movie where id = ?";
+    
+    private String _update_plan_sql = "Update person set planID = ? where cid = ?";
     				 
     private PreparedStatement _director_mid_statement;
     private PreparedStatement _actor_mid_statement;
@@ -63,9 +74,14 @@ public class Query {
     private PreparedStatement _plan_details_statement;
     private PreparedStatement _movie_actor_statement;
     private PreparedStatement _movie_director_statement;
+    private PreparedStatement _plan_list_statement;
+    private PreparedStatement _current_rent_list_sql_statement;
+    private PreparedStatement _valid_movie_statement;
+    private PreparedStatement _update_plan_statement;
 
     
     private String currentUser;
+    private int currentUser_ID;
 
     private String _customer_login_sql = "SELECT * FROM person WHERE username = ? and password = ?";
     private PreparedStatement _customer_login_statement;
@@ -123,10 +139,7 @@ public class Query {
 
         _search_statement = _imdb.prepareStatement(_search_sql);
         _director_mid_statement = _imdb.prepareStatement(_director_mid_sql);
-        _actor_mid_statement = _imdb.prepareStatement(_actor_mid_sql);
-        _rent_statement = _customer_db.prepareStatement(_rent_sql);
-        _movie_actor_statement = _imdb.prepareStatement(_movie_actor_sql);
-        _movie_director_statement = _imdb.prepareStatement(_movie_director_sql);
+        
 
         _customer_login_statement = _customer_db.prepareStatement(_customer_login_sql);
         _begin_transaction_read_write_statement = _customer_db.prepareStatement(_begin_transaction_read_write_sql);
@@ -136,9 +149,16 @@ public class Query {
         /* add here more prepare statements for all the other queries you need */
         /* . . . . . . */
         
+        _actor_mid_statement = _imdb.prepareStatement(_actor_mid_sql);
+        _rent_statement = _customer_db.prepareStatement(_rent_sql);
+        _movie_actor_statement = _imdb.prepareStatement(_movie_actor_sql);
+        _movie_director_statement = _imdb.prepareStatement(_movie_director_sql);
         _rent_count_statement = _customer_db.prepareStatement(_rent_count_sql);
         _plan_statement = _customer_db.prepareStatement(_plan_sql);
         _plan_details_statement = _customer_db.prepareStatement(_plan_details_sql);
+        _valid_movie_statement = _customer_db.prepareStatement(_valid_movie_sql);
+        _plan_list_statement = _customer_db.prepareStatement(_plan_list_sql);
+        
     }
 
 
@@ -149,7 +169,34 @@ public class Query {
         /* how many movies can she/he still rent ? */
         /* you have to compute and return the difference between the customer's plan
            and the count of oustanding rentals */
-        return (99);
+    	_plan_statement.clearParameters();
+    	_plan_statement.setInt(1, cid);
+    	ResultSet plan = _plan_statement.executeQuery();
+    	_plan_details_statement.clearParameters();
+    	
+    	/* Find plan details from the given plan name. */
+    	if(plan.next())
+    		_plan_details_statement.setInt(1, plan.getInt(1));
+    	else
+    		_plan_details_statement.setInt(1, 1);
+    	
+    	/* Get the plan in user's max rental count. */
+    	ResultSet details = _plan_details_statement.executeQuery();
+    	int rentalsLeft = 0;
+    	if(details.next())
+    		rentalsLeft = details.getInt(4);
+    	
+    	/* Get the amount of currently rented movies. */
+    	_rent_count_statement.clearParameters();
+    	_rent_count_statement.setInt(1, cid);
+    	ResultSet count_set = _rent_count_statement.executeQuery();
+    	
+    	if(count_set.next())
+    		rentalsLeft -= count_set.getInt(1);
+    	plan.close();
+    	details.close();
+    	count_set.close();
+        return (rentalsLeft);
     }
 
     public String helper_compute_customer_name(int cid) throws Exception {
@@ -157,15 +204,56 @@ public class Query {
         return ("JoeFirstName" + " " + "JoeLastName");
 
     }
+    
+    public int helper_current_rent_number(int cid) throws Exception {
+    	/* returns the number of the rented movie for this user */
+    	int rentals = 0;
+    	_rent_count_statement.clearParameters();
+    	_rent_count_statement.setInt(1, cid);
+    	ResultSet count_set = _rent_count_statement.executeQuery();
+    	if(count_set.next())
+    		rentals = count_set.getInt(1);
+    	count_set.close();
+    	return rentals;
+    }
+    
+    public int helper_plan_maximum (int pid) throws Exception {
+    	/* returns the maximum number of movie to be rented for this plan */
+    	int allow = 0;
+    	_plan_details_statement.clearParameters();
+    	_plan_details_statement.setInt(1, pid);
+    	ResultSet plan_set = _plan_details_statement.executeQuery();
+    	if (plan_set.next())
+    		allow = plan_set.getInt(4);
+    	plan_set.close();
+    	return allow;
+    }
 
     public boolean helper_check_plan(int plan_id) throws Exception {
         /* is plan_id a valid plan id ?  you have to figure out */
-        return true;
+    	_plan_details_statement.clearParameters();
+    	_plan_details_statement.setInt(1,plan_id);
+    	ResultSet plan_set = _plan_details_statement.executeQuery();
+    	if (plan_set.next()){
+    		plan_set.close();
+    		return true;
+    	}
+    	plan_set.close();
+    	return false;
     }
 
     public boolean helper_check_movie(int mid) throws Exception {
         /* is mid a valid movie id ? you have to figure out  */
-        return true;
+    	_valid_movie_statement.clearParameters();
+    	_valid_movie_statement.setInt(1,mid);
+    	ResultSet movie_set = _valid_movie_statement.executeQuery();
+    	if (movie_set.next())
+    	{
+    		movie_set.close();
+    		return true;
+    	}
+    	movie_set.close();
+        return false;
     }
 
     private int helper_who_has_this_movie(int mid) throws Exception {
@@ -189,6 +277,8 @@ public class Query {
         	cid = cid_set.getInt(2);
         else 
         	cid = -1;
+        
+        currentUser_ID = cid;
         return(cid);
     }
 
@@ -202,15 +292,15 @@ public class Query {
     	
     	/* Find plan details from the given plan name. */
     	if(plan.next())
-    		_plan_details_statement.setString(1, plan.getString(1));
+    		_plan_details_statement.setInt(1, plan.getInt(1));
     	else
-    		_plan_details_statement.setString(1, "valuePlan");
+    		_plan_details_statement.setInt(1, 1);
     	
-    	/* Get the plan in use's max rental count. */
+    	/* Get the plan in user's max rental count. */
     	ResultSet details = _plan_details_statement.executeQuery();
     	int rentalsLeft = 0;
     	if(details.next())
-    		rentalsLeft = details.getInt(3);
+    		rentalsLeft = details.getInt(4);
     	
     	/* Get the amount of currently rented movies. */
     	_rent_count_statement.clearParameters();
@@ -271,7 +361,7 @@ public class Query {
             if(rent_set.next()== false)
                 System.out.println("\t\tAVAILABLE");
             else{
-            	if(rent_set.getString(1)==currentUser)
+            	if(rent_set.getString(1)==(currentUser_ID+""))
             	{
             		System.out.println("\t\tYOU CURRENTLY RENT IT");
             	}
@@ -295,14 +385,71 @@ public class Query {
     public void transaction_choose_plan(int cid, int pid) throws Exception {
         /* updates the customer's plan to pid: UPDATE customers SET plid = pid */
         /* remember to enforce consistency ! */
+    	_customer_db.setAutoCommit(false);
+    	_customer_db.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
+    	
+    	Savepoint save1 = _customer_db.setSavepoint();
+    	
+    	// check current number of rented movie
+    	int curNum = helper_current_rent_number(cid);
+    	System.out.println("");
+    	System.out.println("\tCurrent rent number: " + curNum);
+    	
+    	// check the new plan maximum rented movie number
+    	int newPlan = helper_plan_maximum(pid);
+    	System.out.println("\tPlan " + pid + " rent limit: " + newPlan);
+    	
+    	if (curNum<=newPlan){
+            _update_plan_statement = _customer_db.prepareStatement(_update_plan_sql);
+            _update_plan_statement.setInt(1, pid);
+            _update_plan_statement.setInt(2, cid);
+            _update_plan_statement.executeUpdate();
+            //_customer_db.commit();
+            System.out.println("\tSuccessfully switch to plan "+pid);
+    	}
+    	else{
+    		_customer_db.rollback(save1);
+    		System.out.println("\tCannot switch to plan "+pid);
+    	}
+    	_customer_db.commit();
+    	_customer_db.setAutoCommit(true);   // default value
+    	
     }
 
     public void transaction_list_plans() throws Exception {
         /* println all available plans: SELECT * FROM plan */
+    	_customer_db.setAutoCommit(false);
+    	_customer_db.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
+    	
+    	_plan_list_statement = _customer_db.prepareStatement(_plan_list_sql);
+    	ResultSet plan_list_set = _plan_list_statement.executeQuery();
+    	
+    	while(plan_list_set.next()){
+    		System.out.println("\t\tPlan ID: "+ plan_list_set.getString(1) + ", Plan name: "+plan_list_set.getString(2) + ", Price: " + plan_list_set.getString(3) +
+    				", Maximum rental: " + plan_list_set.getString(4));
+    	}
+    	plan_list_set.close();
+    	_customer_db.commit();
+    	_customer_db.setAutoCommit(true);  // default value
     }
 
     public void transaction_list_user_rentals(int cid) throws Exception {
         /* println all movies rented by the current user*/
+    	_customer_db.setAutoCommit(false);
+    	_customer_db.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
+    	
+    	_current_rent_list_sql_statement = _customer_db.prepareStatement(_current_rent_list_sql);    	
+    	_current_rent_list_sql_statement.clearParameters();
+    	_current_rent_list_sql_statement .setInt(1,currentUser_ID);
+    	ResultSet currentRent_set = _current_rent_list_sql_statement.executeQuery();
+    	
+    	System.out.println("The movies that are current renting:");
+    	while (currentRent_set.next()){
+    		System.out.println("\t\tMovie name:     " + currentRent_set.getString(2));
+    	}
+    	currentRent_set.close();
+    	_customer_db.commit();
+    	_customer_db.setAutoCommit(true);  // default value
     }
 
     public void transaction_rent(int cid, int mid) throws Exception {
