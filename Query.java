@@ -464,7 +464,7 @@ public class Query {
     	
     	System.out.println("The movies that are current renting:");
     	while (currentRent_set.next()){
-    		System.out.println("\t\tMovie name:     " + currentRent_set.getString(2));
+    		System.out.println("\t\tMovie ID:    " + currentRent_set.getString(1) + ",      Movie name:     " + currentRent_set.getString(2));
     	}
     	currentRent_set.close();
     	_customer_db.commit();
