@@ -1,9 +1,9 @@
 create table plans(pid int primary key, planName text, fee int, movieLimit int);
 create table person(userName text, cid int primary key, password text, city text, state text, email text, phoneNumber text, planID int, foreign key(planID) references plans(pid));
---CREATE TABLE MOVIE (id int PRIMARY KEY, name VARCHAR(150), year int);
+CREATE TABLE MOVIE (id int PRIMARY KEY, name VARCHAR(150), year int);
 create table rentals(cid int, foreign key(cid) references person(cid), movieId int, foreign key(movieId) references movie(id), dateCheckedOut date, dateCheckedIn date);
 
---\copy MOVIE from 'C:/imdb2015/movie.txt' with delimiter '|' null as '';
+\copy MOVIE from 'C:/imdb2015/movie.txt' with delimiter '|' null as '';
 
 insert into plans values(1, 'valuePlan', 8.99, 2);
 insert into plans values(2, 'economyPlan',12.99, 5);
