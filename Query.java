@@ -65,6 +65,8 @@ public class Query {
     private String _valid_movie_sql = "Select * from movie where id = ?";
     
     private String _update_plan_sql = "Update person set planID = ? where cid = ?";
+    
+    private String _movie_owner_sql = "Select cid from rentals where movieId = ?";
     				 
     private PreparedStatement _director_mid_statement;
     private PreparedStatement _actor_mid_statement;
@@ -78,6 +80,7 @@ public class Query {
     private PreparedStatement _current_rent_list_sql_statement;
     private PreparedStatement _valid_movie_statement;
     private PreparedStatement _update_plan_statement;
+    private PreparedStatement _movie_owner_statement;
 
     
     private String currentUser;
@@ -158,6 +161,7 @@ public class Query {
         _plan_details_statement = _customer_db.prepareStatement(_plan_details_sql);
         _valid_movie_statement = _customer_db.prepareStatement(_valid_movie_sql);
         _plan_list_statement = _customer_db.prepareStatement(_plan_list_sql);
+        _movie_owner_statement = _customer_db.prepareStatement(_movie_owner_sql);
         
     }
 
@@ -258,7 +262,16 @@ public class Query {
 
     private int helper_who_has_this_movie(int mid) throws Exception {
         /* find the customer id (cid) of whoever currently rents the movie mid; return -1 if none */
-        return (77);
+    	_movie_owner_statement.clearParameters();
+    	_movie_owner_statement.setInt(1, mid);
+    	ResultSet owner_set = _movie_owner_statement.executeQuery();
+    	if(owner_set.next()){
+    		int m = owner_set.getInt(1);
+    		owner_set.close();
+    		return m;
+    	}
+    	owner_set.close();
+    	return (-1);
     }
 
     /**********************************************************/
