@@ -66,13 +66,11 @@ public class Query {
     
     private String _update_plan_sql = "Update person set planID = ? where cid = ?";
     
-<<<<<<< HEAD
     private String _movie_owner_sql = "Select cid from rentals where movieId = ?";
-=======
+
     private String _insert_rental_sql = "Insert into rentals values(?, ?, '2000-01-01', 2000-01-01') ";
     
     private String _return_movie_sql = "Delete FROM rentals where cid=? and movieID=? ";
->>>>>>> origin/master
     				 
     private PreparedStatement _director_mid_statement;
     private PreparedStatement _actor_mid_statement;
@@ -86,12 +84,9 @@ public class Query {
     private PreparedStatement _current_rent_list_sql_statement;
     private PreparedStatement _valid_movie_statement;
     private PreparedStatement _update_plan_statement;
-<<<<<<< HEAD
     private PreparedStatement _movie_owner_statement;
-=======
     private PreparedStatement _insert_rental_statement;
     private PreparedStatement _return_movie_statement;
->>>>>>> origin/master
 
     
     private String currentUser;
@@ -495,7 +490,7 @@ public class Query {
     	else if(whereMovie != -1)
     	{
     		_customer_db.rollback(save1);
-    		System.out.println("Sorry, this movie is rented to someone else!")
+    		System.out.println("Sorry, this movie is rented to someone else!");
     	}
     	else
     	{
