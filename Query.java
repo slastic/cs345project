@@ -68,7 +68,7 @@ public class Query {
     
     private String _movie_owner_sql = "Select cid from rentals where movieId = ?";
 
-    private String _insert_rental_sql = "Insert into rentals values(?, ?, '2000-01-01', 2000-01-01') ";
+    private String _insert_rental_sql = "Insert into rentals values(?, ?, '2000-01-01', '2000-01-01') ";
     
     private String _return_movie_sql = "Delete FROM rentals where cid=? and movieID=? ";
     				 
