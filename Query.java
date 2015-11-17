@@ -66,7 +66,13 @@ public class Query {
     
     private String _update_plan_sql = "Update person set planID = ? where cid = ?";
     
+<<<<<<< HEAD
     private String _movie_owner_sql = "Select cid from rentals where movieId = ?";
+=======
+    private String _insert_rental_sql = "Insert into rentals values(?, ?, '2000-01-01', 2000-01-01') ";
+    
+    private String _return_movie_sql = "Delete FROM rentals where cid=? and movieID=? ";
+>>>>>>> origin/master
     				 
     private PreparedStatement _director_mid_statement;
     private PreparedStatement _actor_mid_statement;
@@ -80,7 +86,12 @@ public class Query {
     private PreparedStatement _current_rent_list_sql_statement;
     private PreparedStatement _valid_movie_statement;
     private PreparedStatement _update_plan_statement;
+<<<<<<< HEAD
     private PreparedStatement _movie_owner_statement;
+=======
+    private PreparedStatement _insert_rental_statement;
+    private PreparedStatement _return_movie_statement;
+>>>>>>> origin/master
 
     
     private String currentUser;
@@ -468,10 +479,61 @@ public class Query {
     public void transaction_rent(int cid, int mid) throws Exception {
         /* rend the movie mid to the customer cid */
         /* remember to enforce consistency ! */
+    	_customer_db.setAutoCommit(false);
+    	_customer_db.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
+    	
+    	Savepoint save1 = _customer_db.setSavepoint();
+    	
+    	// check who has the movie right now
+    	int whereMovie = helper_who_has_this_movie(mid);
+    	
+    	if (whereMovie == cid)
+    	{
+    		_customer_db.rollback(save1);
+    		System.out.println("Oops, it looks like you already have this movie!");		
+    	}
+    	else if(whereMovie != -1)
+    	{
+    		_customer_db.rollback(save1);
+    		System.out.println("Sorry, this movie is rented to someone else!")
+    	}
+    	else
+    	{
+    		_insert_rental_statement = _customer_db.prepareStatement(_insert_rental_sql);
+    		_insert_rental_statement.setInt(1,cid);
+    		_insert_rental_statement.setInt(2,mid);
+    		_insert_rental_statement.executeUpdate();
+    		System.out.println("You have rented this movie");
+    	}
+    	_customer_db.commit();
+    	_customer_db.setAutoCommit(true);   // default value
     }
 
     public void transaction_return(int cid, int mid) throws Exception {
         /* return the movie mid by the customer cid */
+    	_customer_db.setAutoCommit(false);
+    	_customer_db.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
+    	
+    	Savepoint save1 = _customer_db.setSavepoint();
+    	
+    	// check who has this movie
+    	int whereMovie = helper_who_has_this_movie(mid);
+    	
+    	if (whereMovie!=cid)
+    	{
+    		_customer_db.rollback(save1);
+    		System.out.println("Oops, it looks like you don't have this movie!");
+    	}
+    	else
+    	{
+    		_return_movie_statement = _customer_db.prepareStatement(_return_movie_sql);
+    		_return_movie_statement.setInt(1,cid);
+    		_return_movie_statement.setInt(2,mid);
+    		_return_movie_statement.executeUpdate();
+    		System.out.println("You just returned this movie!");
+    	}
+    	_customer_db.commit();
+    	_customer_db.setAutoCommit(true);   // default value
     }
 
     public void transaction_fast_search(int cid, String movie_title)
